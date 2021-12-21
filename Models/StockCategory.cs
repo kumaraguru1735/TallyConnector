@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Text.Json.Serialization;
@@ -10,39 +9,79 @@ using System.Xml.Serialization;
 namespace TallyConnector.Models
 {
     [XmlRoot(ElementName = "STOCKCATEGORY")]
-    public class StockCategory : TallyXmlJson
+    public class StockCategory:TallyXmlJson
     {
-        public StockCategory()
-        {
-            LanguageNameList = new List<LanguageNameList>();
-        }
-
         [XmlElement(ElementName = "MASTERID")]
         public int? TallyId { get; set; }
 
         [XmlAttribute(AttributeName = "NAME")]
-        [JsonIgnore]
-        public string OldName { get; set; }
+        public string Name { get; set; }
 
-        private string name;
-
-        [XmlElement(ElementName = "NAME")]
-        [Required]
-        public string Name
-        {
-            get { return (name == null || name == string.Empty) ? OldName : name; }
-            set => name = value;
-        }
+        [XmlIgnore]
+        public string VName { get; set; }
 
         [XmlElement(ElementName = "PARENT")]
         public string Parent { get; set; }
 
         [XmlIgnore]
-        public string Alias { get; set; }
+        public string Alias
+        {
+            get
+            {
+                if (this.LanguageNameList.NameList.NAMES.Count > 0)
+                {
+                    if (VName == null)
+                    {
+                        VName = this.LanguageNameList.NameList.NAMES[0];
+                    }
+                    if (Name == VName)
+                    {
+                        this.LanguageNameList.NameList.NAMES[0] = this.Name;
+                        return string.Join("..\n", this.LanguageNameList.NameList.NAMES.GetRange(1, this.LanguageNameList.NameList.NAMES.Count - 1));
+
+                    }
+                    else
+                    {
+                        //Name = this.LanguageNameList.NameList.NAMES[0];
+                        return string.Join("..\n", this.LanguageNameList.NameList.NAMES);
+
+                    }
+                }
+                else
+                {
+                    this.LanguageNameList.NameList.NAMES.Add(this.Name);
+                    return null;
+                }
+
+
+            }
+            set
+            {
+                this.LanguageNameList = new LanguageNameList();
+                
+                if (value != null)
+                {
+                    List<string> lis = value.Split("..\n".ToCharArray()).ToList();
+
+                    LanguageNameList.NameList.NAMES.Add(Name);
+                    if (value != "")
+                    {
+                        LanguageNameList.NameList.NAMES.AddRange(lis);
+                    }
+
+                }
+                else
+                {
+                    LanguageNameList.NameList.NAMES.Add(Name);
+                }
+
+
+            }
+        }
 
         [JsonIgnore]
         [XmlElement(ElementName = "LANGUAGENAME.LIST")]
-        public List<LanguageNameList> LanguageNameList { get; set; }
+        public LanguageNameList LanguageNameList { get; set; }
         /// <summary>
         /// Accepted Values //Create, Alter, Delete
         /// </summary>
@@ -52,20 +91,6 @@ namespace TallyConnector.Models
 
         [XmlElement(ElementName = "GUID")]
         public string GUID { get; set; }
-
-        public void CreateNamesList()
-        {
-            if (this.LanguageNameList.Count == 0)
-            {
-                this.LanguageNameList.Add(new LanguageNameList());
-                this.LanguageNameList[0].NameList.NAMES.Add(this.Name);
-
-            }
-            if (this.Alias != null && this.Alias != string.Empty)
-            {
-                this.LanguageNameList[0].LanguageAlias = this.Alias;
-            }
-        }
     }
 
     [XmlRoot(ElementName = "ENVELOPE")]

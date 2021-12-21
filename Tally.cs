@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Xml.Serialization;
 using System.Xml.Xsl;
-using TallyConnector.Exceptions;
 using TallyConnector.Models;
 namespace TallyConnector
 {
@@ -55,7 +54,6 @@ namespace TallyConnector
 
         public List<Company> CompaniesList { get; private set; }
 
-        public LicenseInfo LicenseInfo { get; private set; }
 
         /// <summary>
         /// Intiate Tally with <strong>baseURL</strong> and <strong>port</strong>
@@ -78,14 +76,14 @@ namespace TallyConnector
         /// <summary>
         /// If nothing Specified during Intialisation default Url will be <strong>http://localhost</strong> running on port <strong>9000</strong>
         /// </summary>
-        public Tally(ILogger<Tally> Logger = null,
+        public Tally(ILogger<Tally> logger = null,
                      int Timeoutseconds = 30)
         {
-            this.Logger = Logger ?? NullLogger<Tally>.Instance;
+            Logger = logger;
             CLogger = new CLogger(Logger);
             client.Timeout = TimeSpan.FromSeconds(Timeoutseconds);
             Setup("http://localhost", 9000);
-
+            
         }
 
 
@@ -109,10 +107,10 @@ namespace TallyConnector
             FromDate = fromDate;
             ToDate = toDate;
 
-            CLogger?.SetupLog(baseURL, port, company, fromDate, toDate);
+            CLogger?.SetupLog(baseURL,port,company,fromDate,  toDate);
         }
 
-
+        
 
         /// <summary>
         /// Checks whether Tally is running in given URL and port
@@ -137,62 +135,15 @@ namespace TallyConnector
                 CLogger.TallyNotRunning(FullURL);
                 Status = $"Tally is not opened \n or Tally is not running in given port - { Port} )\n or Given URL - {BaseURL} \n" +
                     e.Message;
-                //throw new TallyConnectivityException("Tally is not running", FullURL);
             }
             catch (Exception e)
             {
-                CLogger.TallyError(FullURL, e.Message);
+                CLogger.TallyError(FullURL,e.Message);
             }
             return false;
         }
 
-        public async Task<LicenseInfo> GetLicenseInfo()
-        {
-            string ReqType = "Tally Info";
-            CLogger.TallyReqStart(ReqType);
-            List<string> LicenseInfoFormulas = new List<string>()
-            {
-                "IsEducationalMode: $$LicenseInfo:IsEducationalMode",
-                "IsSilver: $$LicenseInfo:IsSilver",
-                "IsGold: $$LicenseInfo:IsGold",
-                "PlanName:" +
-                " If $$LicenseInfo:IsEducationalMode Then \"Educational Version\"" +
-                " ELSE " +
-                " If $$LicenseInfo:IsSilver Then \"Silver\"" +
-                " ELSE " +
-                " If $$LicenseInfo:IsGold Then \"Gold\"" +
-                " else \"\"",
-                "SerialNumber: $$LicenseInfo:SerialNumber",
-                "AccountId:$$LicenseInfo:AccountID",
-                "IsIndian: $$LicenseInfo:IsIndian",
-                "RemoteSerialNumber: $$LicenseInfo:RemoteSerialNumber",
-                "IsRemoteAccessMode: $$LicenseInfo:IsRemoteAccessMode",
-                "IsLicClientMode: $$LicenseInfo:IsLicClientMode",
-                "AdminMailId:$$LicenseInfo:AdminEmailID",
-                "IsAdmin:$$LicenseInfo:IsAdmin",
-                "ApplicationPath:$$SysInfo:ApplicationPath",
-                "DataPath:##SVCurrentPath",
-                "UserName:$$cmpusername",
-                "UserLevel:$$cmpuserlevel"
-            };
 
-            List<TallyCustomObject> tallyCustomObjects = new List<TallyCustomObject>() {
-                new TallyCustomObject("LicenseInfo",LicenseInfoFormulas)
-             };
-
-            CusColEnvelope ColEnvelope = new CusColEnvelope(); //Collection Envelope
-            string CollectionName = "LicenseInfo";
-            ColEnvelope.Header = new Header("Export", "Collection", CollectionName);
-            ColEnvelope.Body.Desc.TDL.TDLMessage = new ColTDLMessage(tallyCustomObjects: tallyCustomObjects,
-                                                       objCollectionName: CollectionName,
-                                                       ObjNames: "LicenseInfo");
-            string Reqxml = ColEnvelope.GetXML();
-            String RespXml = await SendRequest(Reqxml);
-            LicenseInfo licenseInfo = GetObjfromXml<LicInfoEnvelope>(RespXml).Body.Data.Collection.LicenseInfo;
-            LicenseInfo = licenseInfo;
-            return licenseInfo;
-            //string xml = GetCustomCollectionXML("TallyInfo", tallyCustomObjects);
-        }
 
         /// <summary>
         /// Gets List of Companies opened in tally and saves in Model.Company List
@@ -210,10 +161,10 @@ namespace TallyConnector
                     List<string> NativeFields = new List<string>() { "Name", "StartingFrom", "GUID", "*" };
                     string xml = await GetNativeCollectionXML(rName: "ListofCompanies",
                                                           colType: "Company", NativeFields: NativeFields, isInitialize: true);
-                    CompaniesList = GetObjfromXml<ComListEnvelope>(xml).Body.Data.Collection.CompaniesList;
+                    CompaniesList = Tally.GetObjfromXml<ComListEnvelope>(xml).Body.Data.Collection.CompaniesList;
                     CLogger.TallyReqCompleted(ReqType);
                 }
-                catch (Exception e)
+                catch (Exception e) 
                 {
                     CLogger.RequestError(ReqType, e.Message);
                     //return CompList;
@@ -222,7 +173,7 @@ namespace TallyConnector
             }
             return CompaniesList;
         }
-
+       
         /// <summary>
         /// Gets List of Companies in tally default Tally path
         /// </summary>
@@ -239,13 +190,13 @@ namespace TallyConnector
                 List<string> Filters = new List<string>() { "NonGroupFilter" };
                 List<string> SystemFilter = new List<string>() { $"$ISAGGREGATE = \"No\"" };
                 string xml = await GetNativeCollectionXML(rName: "ListofCompaniesOpened",
-                                                      colType: "Company On Disk", NativeFields: NativeFields, Filters: Filters, SystemFilters: SystemFilter);
+                                                      colType: "Company On Disk", NativeFields: NativeFields,Filters:Filters,SystemFilters:SystemFilter);
                 try
                 {
-                    Companies = GetObjfromXml<ComListinpathEnvelope>(xml).Body.Data.Collection.CompaniesList;
+                    Companies = Tally.GetObjfromXml<ComListinpathEnvelope>(xml).Body.Data.Collection.CompaniesList;
                     CLogger.TallyReqCompleted(ReqType);
                 }
-                catch (Exception e)
+                catch(Exception e)
                 {
                     CLogger.RequestError(ReqType, e.Message);
                 }
@@ -260,7 +211,7 @@ namespace TallyConnector
         /// </summary>
         /// <param name="company">Specify Company if not specified in Setup</param>
         /// <returns></returns>
-        public async Task FetchAllTallyData()
+        public async Task FetchAllTallyData(string company = null)
         {
             string ReqType = "Masters from Tally";
             CLogger.TallyReqStart(ReqType);
@@ -277,7 +228,7 @@ namespace TallyConnector
             CostCenters = await GetCostCentersList();
 
             //Gets Stock Groups from Tally
-            StockGroups = await GetStockGroupsList();
+            StockGroups =  await GetStockGroupsList();
 
             //Gets Stock Categories from Tally
             StockCategories = await GetStockCategories();
@@ -365,7 +316,7 @@ namespace TallyConnector
                                                          NativeFields: Nativelist,
                                                          Filters: Filters,
                                                          SystemFilters: SystemFilters);
-            List<Ledger> TLedgers = GetObjfromXml<LedgerEnvelope>(LedXml).Body.Data.Collection.Ledgers;
+            List<Ledger>  TLedgers = GetObjfromXml<LedgerEnvelope>(LedXml).Body.Data.Collection.Ledgers;
             return TLedgers;
         }
 
@@ -378,11 +329,9 @@ namespace TallyConnector
             Nativelist = Nativelist ?? new List<string>() { "Name", "GUID", "Masterid" };
 
             string CostCategoryXml = await GetNativeCollectionXML(rName: "NativeCostCatColl",
-                                                                  colType: "Costcategory",
-                                                                  Sv: staticVariables,
-                                                                  NativeFields: Nativelist,
-                                                                  Filters: Filters,
-                                                                  SystemFilters: SystemFilters);
+                                                                              colType: "Costcategory",
+                                                                              Sv: staticVariables,
+                                                                              NativeFields: Nativelist);
             List<CostCategory> TCostCategories = GetObjfromXml<CostCatEnvelope>(CostCategoryXml).Body.Data.Collection.CostCategories;
             return TCostCategories;
         }
@@ -399,11 +348,11 @@ namespace TallyConnector
             SystemFilters = SystemFilters ?? new List<string>() { "Not $ISEMPLOYEEGROUP", "Not $FORPAYROLL" };
 
             string CostCenetrXml = await GetNativeCollectionXML(rName: "NativeCostCentColl",
-                                                                colType: "CostCenter",
-                                                                Sv: staticVariables,
-                                                                NativeFields: Nativelist,
-                                                                Filters: Filters,
-                                                                SystemFilters: SystemFilters);
+                                                                            colType: "CostCenter",
+                                                                            Sv: staticVariables,
+                                                                            NativeFields: Nativelist,
+                                                                            Filters: Filters,
+                                                                            SystemFilters: SystemFilters);
             List<CostCenter> TCostCenters = GetObjfromXml<CostCentEnvelope>(CostCenetrXml).Body.Data.Collection.CostCenters;
             return TCostCenters;
         }
@@ -419,9 +368,7 @@ namespace TallyConnector
             string StockGroupXml = await GetNativeCollectionXML(rName: "NativeStckGrpColl",
                                                                 colType: "StockGroup",
                                                                 Sv: staticVariables,
-                                                                NativeFields: Nativelist,
-                                                                Filters: Filters,
-                                                                SystemFilters: SystemFilters);
+                                                                NativeFields: Nativelist);
             List<StockGroup> TStockGroups = GetObjfromXml<StockGrpEnvelope>(StockGroupXml).Body.Data.Collection.StockGroups;
             return TStockGroups;
 
@@ -437,9 +384,7 @@ namespace TallyConnector
             string StockCategoryXml = await GetNativeCollectionXML(rName: "NativeStckCatColl",
                                                                    colType: "StockCategory",
                                                                    Sv: staticVariables,
-                                                                   NativeFields: Nativelist,
-                                                                   Filters: Filters,
-                                                                   SystemFilters: SystemFilters);
+                                                                   NativeFields: Nativelist);
             List<StockCategory> TStockCategories = GetObjfromXml<StockCatEnvelope>(StockCategoryXml).Body.Data.Collection.StockCategories;
             return TStockCategories;
         }
@@ -452,11 +397,9 @@ namespace TallyConnector
             staticVariables = staticVariables ?? new StaticVariables() { SVCompany = Company, SVExportFormat = "XML" };
             Nativelist = Nativelist ?? new List<string>() { "Name", "GUID", "Masterid" };
             string StockItemsXml = await GetNativeCollectionXML(rName: "NativeStckItmColl",
-                                                                colType: "StockItem",
-                                                                Sv: staticVariables,
-                                                                NativeFields: Nativelist,
-                                                                Filters: Filters,
-                                                                SystemFilters: SystemFilters);
+                                                                   colType: "StockItem",
+                                                                   Sv: staticVariables,
+                                                                   NativeFields: Nativelist);
             List<StockItem> TStockItems = GetObjfromXml<StockItemEnvelope>(StockItemsXml).Body.Data.Collection.StockItems;
             return TStockItems;
         }
@@ -469,11 +412,9 @@ namespace TallyConnector
             staticVariables = staticVariables ?? new StaticVariables() { SVCompany = Company, SVExportFormat = "XML" };
             Nativelist = Nativelist ?? new List<string>() { "Name", "GUID", "Masterid" };
             string GodownsXml = await GetNativeCollectionXML(rName: "NativeGdwnColl",
-                                                             colType: "Godown",
-                                                             Sv: staticVariables,
-                                                             NativeFields: Nativelist,
-                                                             Filters: Filters,
-                                                             SystemFilters: SystemFilters);
+                                                                   colType: "Godown",
+                                                                   Sv: staticVariables,
+                                                                   NativeFields: Nativelist);
             List<Godown> TGodowns = GetObjfromXml<GodownEnvelope>(GodownsXml).Body.Data.Collection.Godowns;
             return TGodowns;
         }
@@ -486,11 +427,9 @@ namespace TallyConnector
             staticVariables = staticVariables ?? new StaticVariables() { SVCompany = Company, SVExportFormat = "XML" };
             Nativelist = Nativelist ?? new List<string>() { "Name", "GUID", "Masterid" };
             string VoucherTypesXml = await GetNativeCollectionXML(rName: "NativeVchTypeColl",
-                                                                  colType: "VoucherType",
-                                                                  Sv: staticVariables,
-                                                                  NativeFields: Nativelist,
-                                                                  Filters: Filters,
-                                                                  SystemFilters: SystemFilters);
+                                                                   colType: "VoucherType",
+                                                                   Sv: staticVariables,
+                                                                   NativeFields: Nativelist);
             List<VoucherType> TVoucherTypes = GetObjfromXml<VoucherTypeEnvelope>(VoucherTypesXml).Body.Data.Collection.VoucherTypes;
             return TVoucherTypes;
         }
@@ -503,11 +442,9 @@ namespace TallyConnector
             staticVariables = staticVariables ?? new StaticVariables() { SVCompany = Company, SVExportFormat = "XML" };
             Nativelist = Nativelist ?? new List<string>() { "Name", "GUID", "Masterid" };
             string UnitsXml = await GetNativeCollectionXML(rName: "NativeUnitColl",
-                                                           colType: "Unit",
-                                                           Sv: staticVariables,
-                                                           NativeFields: Nativelist,
-                                                           Filters: Filters,
-                                                           SystemFilters: SystemFilters);
+                                                                   colType: "Unit",
+                                                                   Sv: staticVariables,
+                                                                   NativeFields: Nativelist);
             List<Unit> TUnits = GetObjfromXml<UnitEnvelope>(UnitsXml).Body.Data.Collection.Units;
             return TUnits;
         }
@@ -520,14 +457,12 @@ namespace TallyConnector
 
             //Dictionary<string, string> Currenciesfields = new() { { "$EXPANDEDSYMBOL", "NAME" } };
             staticVariables = staticVariables ?? new StaticVariables() { SVCompany = Company, SVExportFormat = "XML" };
-            Nativelist = Nativelist ?? new List<string>() { "Name", "GUID", "EXPANDEDSYMBOL", "Masterid" };
+            Nativelist = Nativelist ?? new List<string>() { "Name", "GUID", "Masterid" };
 
             string CurrenciesXml = await GetNativeCollectionXML(rName: "NativeCurrColl",
-                                                                colType: "Currency",
-                                                                Sv: staticVariables,
-                                                                NativeFields: Nativelist,
-                                                                Filters: Filters,
-                                                                SystemFilters: SystemFilters);
+                                                                               colType: "Currency",
+                                                                               Sv: staticVariables,
+                                                                               NativeFields: Nativelist);
             List<Currency> TCurrencies = GetObjfromXml<CurrencyEnvelope>(CurrenciesXml).Body.Data.Collection.Currencies;
             return TCurrencies;
         }
@@ -541,12 +476,10 @@ namespace TallyConnector
             Nativelist = Nativelist ?? new List<string>() { "Name", "GUID", "Masterid" };
 
             string AttendanceTypesXml = await GetNativeCollectionXML(rName: "NativeAtndTypeColl",
-                                                                     colType: "AttendanceType",
-                                                                     Sv: staticVariables,
-                                                                     NativeFields: Nativelist,
-                                                                     Filters: Filters,
-                                                                     SystemFilters: SystemFilters);
-            List<AttendanceType> TAttendanceTypes = GetObjfromXml<AttendanceTypeEnvelope>(AttendanceTypesXml).Body.Data.Collection.AttendanceTypes;
+                                                                               colType: "AttendanceType",
+                                                                               Sv: staticVariables,
+                                                                               NativeFields: Nativelist);
+            List<AttendanceType> TAttendanceTypes = GetObjfromXml<AttendanceEnvelope>(AttendanceTypesXml).Body.Data.Collection.AttendanceTypes;
             return TAttendanceTypes;
         }
 
@@ -620,22 +553,9 @@ namespace TallyConnector
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
 
-            GroupEnvelope groupEnvelope = GetObjfromXml<GroupEnvelope>(xml);
-            if (groupEnvelope.Body.Data.Collection.Groups.Count > 0)
-            {
-                Group group = groupEnvelope.Body.Data.Collection.Groups[0];
-                group.Alias = group.LanguageNameList[0].LanguageAlias;
-                group.Name = group.Name ?? group.OldName;
-                return group;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("Group",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
+            Group Group = GetObjfromXml<GroupEnvelope>(xml).Body.Data.Collection.Groups[0];
 
+            return Group;
         }
 
 
@@ -665,12 +585,6 @@ namespace TallyConnector
             {
                 group.Parent = null;
             }
-            if (group.Name == string.Empty || group.Name == null)
-            {
-                group.Name = group.OldName;
-            }
-            //Creates Names List if Not Exists
-            group.CreateNamesList();
             string GroupXML = groupEnvelope.GetXML();
 
             string RespXml = await SendRequest(GroupXML);
@@ -679,8 +593,6 @@ namespace TallyConnector
 
             return result;
         }
-
-
 
 
 
@@ -716,21 +628,9 @@ namespace TallyConnector
                                                       NativeFields: Nativelist,
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
-            LedgerEnvelope ledgerEnvelope = GetObjfromXml<LedgerEnvelope>(xml);
-            if (GetObjfromXml<LedgerEnvelope>(xml).Body.Data.Collection.Ledgers.Count > 0)
-            {
-                Ledger ledger = ledgerEnvelope.Body.Data.Collection.Ledgers[0];
-                ledger.Alias = ledger.LanguageNameList[0].LanguageAlias;
-                ledger.Name = ledger.Name ?? ledger.OldName;
-                return ledger;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("Ledger",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
+
+            Ledger ledger = GetObjfromXml<LedgerEnvelope>(xml).Body.Data.Collection.Ledgers[0];
+            return ledger;
         }
 
         /// <summary>
@@ -741,8 +641,7 @@ namespace TallyConnector
         /// <param name="fetchList">You can select the list of fields to be fetched from tally if nothing specified it pulls all fields availaible in Tally
         /// </param>
         /// <returns>Returns instance of Models.Ledger instance with data from tally</returns>
-        public async Task<Ledger> GetLedger(string LookupValue,
-                                            string LookupField = "Name",
+        public async Task<Ledger> GetLedger(string ledgerName,
                                             string company = null,
                                             List<string> Nativelist = null)
         {
@@ -751,7 +650,7 @@ namespace TallyConnector
             Nativelist = Nativelist ?? new List<string>() { "Address", "InterestCollection", "*" };
             StaticVariables sv = new StaticVariables() { SVCompany = company };
             List<string> Filters = new List<string>() { "Cusfilter" };
-            List<string> SystemFilter = new List<string>() { $"${LookupField} = \"{LookupValue}\"" };
+            List<string> SystemFilter = new List<string>() { $"$Name = \"{ledgerName}\"" };
 
             string xml = await GetNativeCollectionXML(rName: "Ledgers",
                                                       colType: "Masters",
@@ -760,24 +659,11 @@ namespace TallyConnector
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
 
-            LedgerEnvelope ledgerEnvelope = GetObjfromXml<LedgerEnvelope>(xml);
-            if (GetObjfromXml<LedgerEnvelope>(xml).Body.Data.Collection.Ledgers.Count > 0)
-            {
-                Ledger ledger = ledgerEnvelope.Body.Data.Collection.Ledgers[0];
-                ledger.Alias = ledger.LanguageNameList[0].LanguageAlias;
-                ledger.Name = ledger.Name ?? ledger.OldName;
-                return ledger;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("Ledger",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
+            Ledger ledger = GetObjfromXml<LedgerEnvelope>(xml).Body.Data.Collection.Ledgers[0];
+            return ledger;
         }
 
-
+        
         /// <summary>
         /// Create/Alter/Delete Ledger in Tally by Ledger name - Set Ledger.Action if you want to Alter/Delete existing Ledger
         /// </summary>
@@ -804,8 +690,6 @@ namespace TallyConnector
             {
                 ledger.Group = null;
             }
-            //Creates Names List if Not Exists
-            ledger.CreateNamesList();
             string LedgXML = ledgerEnvelope.GetXML();
 
             string RespXml = await SendRequest(LedgXML);
@@ -848,22 +732,8 @@ namespace TallyConnector
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
 
-            CostCatEnvelope costCategoryEnvelope = GetObjfromXml<CostCatEnvelope>(xml);
-            if (costCategoryEnvelope.Body.Data.Collection.CostCategories.Count > 0)
-            {
-                CostCategory costCategory = costCategoryEnvelope.Body.Data.Collection.CostCategories[0];
-                costCategory.Alias = costCategory.LanguageNameList[0].LanguageAlias;
-                costCategory.Name = costCategory.Name ?? costCategory.OldName;
-                return costCategory;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("CostCategory",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
-
+            CostCategory costCategory = GetObjfromXml<CostCatEnvelope>(xml).Body.Data.Collection.CostCategories[0];
+            return costCategory;
         }
 
         /// <summary>
@@ -887,7 +757,7 @@ namespace TallyConnector
             costCat.Body.Desc.StaticVariables = new StaticVariables() { SVCompany = company };
 
             costCat.Body.Data.Message.CostCategory = CostCategory;
-            CostCategory.CreateNamesList();
+
             string CostCatXML = costCat.GetXML();
 
             string RespXml = await SendRequest(CostCatXML);
@@ -915,7 +785,8 @@ namespace TallyConnector
                                                     string company = null,
                                                     string fromDate = null,
                                                     string toDate = null,
-                                                    List<string> fetchList = null)
+                                                    List<string> fetchList = null,
+                                                    string format = "XML")
         {
             //If parameter is null Get value from instance
             company = company ?? Company;
@@ -932,23 +803,8 @@ namespace TallyConnector
                                                       NativeFields: fetchList,
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
-            CostCentEnvelope costCenterEnv = GetObjfromXml<CostCentEnvelope>(xml);
-            if (costCenterEnv.Body.Data.Collection.CostCenters.Count > 0)
-            {
-                CostCenter costCenter = costCenterEnv.Body.Data.Collection.CostCenters[0];
-                costCenter.Alias = costCenter.LanguageNameList[0].LanguageAlias;
-                costCenter.Name = costCenter.Name ?? costCenter.OldName;
-                return costCenter;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("CostCenter",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
-
-
+            CostCenter costCenter = GetObjfromXml<CostCentEnvelope>(xml).Body.Data.Collection.CostCenters[0];
+            return costCenter;
         }
 
 
@@ -977,7 +833,6 @@ namespace TallyConnector
             {
                 costCenter.Parent = null;
             }
-            costCenter.CreateNamesList();
             string CostCenterXML = costCentEnvelope.GetXML();
 
             string RespXml = await SendRequest(CostCenterXML);
@@ -1021,21 +876,8 @@ namespace TallyConnector
                                                       NativeFields: fetchList,
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
-            StockGrpEnvelope stockGrpEnvelope = GetObjfromXml<StockGrpEnvelope>(xml);
-            if (stockGrpEnvelope.Body.Data.Collection.StockGroups.Count > 0)
-            {
-                StockGroup stockGroup = stockGrpEnvelope.Body.Data.Collection.StockGroups[0];
-                stockGroup.Alias = stockGroup.LanguageNameList[0].LanguageAlias;
-                stockGroup.Name = stockGroup.Name ?? stockGroup.OldName;
-                return stockGroup;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("StockGroup",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
+            StockGroup StockGroup = GetObjfromXml<StockGrpEnvelope>(xml).Body.Data.Collection.StockGroups[0];
+            return StockGroup;
         }
 
 
@@ -1060,11 +902,10 @@ namespace TallyConnector
             StockGrpEnvelope.Body.Desc.StaticVariables = new StaticVariables() { SVCompany = company };
 
             StockGrpEnvelope.Body.Data.Message.StockGroup = stockGroup;
-            if (stockGroup.Parent != null && stockGroup.Parent.Contains("Primary"))
+            if (stockGroup.Parent !=null && stockGroup.Parent.Contains("Primary"))
             {
                 stockGroup.Parent = null;
             }
-            stockGroup.CreateNamesList();
             string StockGrpXML = StockGrpEnvelope.GetXML();
 
             string RespXml = await SendRequest(StockGrpXML);
@@ -1108,21 +949,8 @@ namespace TallyConnector
                                                       NativeFields: fetchList,
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
-            StockCatEnvelope StockCategoryEnve = GetObjfromXml<StockCatEnvelope>(xml);
-            if (StockCategoryEnve.Body.Data.Collection.StockCategories.Count > 0)
-            {
-                StockCategory stockCategory = StockCategoryEnve.Body.Data.Collection.StockCategories[0];
-                stockCategory.Alias = stockCategory.LanguageNameList[0].LanguageAlias;
-                stockCategory.Name = stockCategory.Name ?? stockCategory.OldName;
-                return stockCategory;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("StockCategory",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
+            StockCategory StockCategory = GetObjfromXml<StockCatEnvelope>(xml).Body.Data.Collection.StockCategories[0];
+            return StockCategory;
         }
 
 
@@ -1147,11 +975,10 @@ namespace TallyConnector
             StockCatEnvelope.Body.Desc.StaticVariables = new StaticVariables() { SVCompany = company };
 
             StockCatEnvelope.Body.Data.Message.StockCategory = stockCategory;
-            if (stockCategory.Parent != null && stockCategory.Parent.Contains("Primary"))
+            if (stockCategory.Parent !=null && stockCategory.Parent.Contains("Primary"))
             {
                 stockCategory.Parent = null;
             }
-            stockCategory.CreateNamesList();
             string StockCatXML = StockCatEnvelope.GetXML();
 
             string RespXml = await SendRequest(StockCatXML);
@@ -1194,21 +1021,8 @@ namespace TallyConnector
                                                       NativeFields: fetchList,
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
-            StockItemEnvelope StockItemEnvel = GetObjfromXml<StockItemEnvelope>(xml);
-            if (StockItemEnvel.Body.Data.Collection.StockItems.Count > 0)
-            {
-                StockItem stockItem = StockItemEnvel.Body.Data.Collection.StockItems[0];
-                stockItem.Alias = stockItem.LanguageNameList[0].LanguageAlias;
-                stockItem.Name = stockItem.Name ?? stockItem.OldName;
-                return stockItem;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("StockItem",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
+            StockItem StockItem = GetObjfromXml<StockItemEnvelope>(xml).Body.Data.Collection.StockItems[0];
+            return StockItem;
         }
 
 
@@ -1237,7 +1051,6 @@ namespace TallyConnector
             {
                 stockItem.StockGroup = null;
             }
-            stockItem.CreateNamesList();
             string StockItmXML = StockItmEnvelope.GetXML();
 
             string RespXml = await SendRequest(StockItmXML);
@@ -1281,23 +1094,8 @@ namespace TallyConnector
                                                       NativeFields: fetchList,
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
-            UnitEnvelope UnitEnvelope = GetObjfromXml<UnitEnvelope>(xml);
-            if (UnitEnvelope.Body.Data.Collection.Units.Count > 0)
-            {
-                Unit unit = UnitEnvelope.Body.Data.Collection.Units[0];
-                unit.Name = unit.Name ?? unit.OldName;
-                return unit;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("Unit",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
-
-
-
+            Unit Unit = GetObjfromXml<UnitEnvelope>(xml).Body.Data.Collection.Units[0];
+            return Unit;
         }
 
 
@@ -1365,22 +1163,8 @@ namespace TallyConnector
                                                       NativeFields: fetchList,
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
-            GodownEnvelope godownEnvelope = GetObjfromXml<GodownEnvelope>(xml);
-            if (godownEnvelope.Body.Data.Collection.Godowns.Count > 0)
-            {
-                Godown godown = godownEnvelope.Body.Data.Collection.Godowns[0];
-                godown.Alias = godown.LanguageNameList[0].LanguageAlias;
-                godown.Name = godown.Name ?? godown.OldName;
-                return godown;
-
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("Godown",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
+            Godown godown = GetObjfromXml<GodownEnvelope>(xml).Body.Data.Collection.Godowns[0];
+            return godown;
         }
 
 
@@ -1409,7 +1193,6 @@ namespace TallyConnector
             {
                 godown.Parent = null;
             }
-            godown.CreateNamesList();
             string GdwnXML = GdwnEnvelope.GetXML();
 
             string RespXml = await SendRequest(GdwnXML);
@@ -1453,25 +1236,9 @@ namespace TallyConnector
                                                       NativeFields: fetchList,
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
-            VoucherTypeEnvelope VoucherTypeEnvelope = GetObjfromXml<VoucherTypeEnvelope>(xml);
-            if (VoucherTypeEnvelope.Body.Data.Collection.VoucherTypes.Count > 0)
-            {
-                VoucherType voucherType = VoucherTypeEnvelope.Body.Data.Collection.VoucherTypes[0];
-                voucherType.Alias = voucherType.LanguageNameList[0].LanguageAlias;
-                voucherType.Name = voucherType.Name ?? voucherType.OldName;
-                return voucherType;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("VoucherType",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
-
+            VoucherType VoucherType = GetObjfromXml<VoucherTypeEnvelope>(xml).Body.Data.Collection.VoucherTypes[0];
+            return VoucherType;
         }
-
-        
 
 
         /// <summary>
@@ -1495,7 +1262,7 @@ namespace TallyConnector
             VchTypeEnvelope.Body.Desc.StaticVariables = new StaticVariables() { SVCompany = company };
 
             VchTypeEnvelope.Body.Data.Message.VoucherType = voucherType;
-            voucherType.CreateNamesList();
+
             string GdwnXML = VchTypeEnvelope.GetXML();
 
             string RespXml = await SendRequest(GdwnXML);
@@ -1538,19 +1305,8 @@ namespace TallyConnector
                                                       NativeFields: fetchList,
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
-            CurrencyEnvelope CurrencyEnvelope = GetObjfromXml<CurrencyEnvelope>(xml);
-            if (CurrencyEnvelope.Body.Data.Collection.Currencies.Count > 0)
-            {
-                Currency currency = CurrencyEnvelope.Body.Data.Collection.Currencies[0];
-                return currency;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("Currency",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
+            Currency Currency = GetObjfromXml<CurrencyEnvelope>(xml).Body.Data.Collection.Currencies[0];
+            return Currency;
         }
 
 
@@ -1618,21 +1374,8 @@ namespace TallyConnector
                                                       NativeFields: fetchList,
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
-            AttendanceTypeEnvelope attendanceTypeEnvelope = GetObjfromXml<AttendanceTypeEnvelope>(xml);
-            if (attendanceTypeEnvelope.Body.Data.Collection.AttendanceTypes.Count > 0)
-            {
-                AttendanceType attendanceType = attendanceTypeEnvelope.Body.Data.Collection.AttendanceTypes[0];
-                attendanceType.Alias = attendanceType.LanguageNameList[0].LanguageAlias;
-                attendanceType.Name = attendanceType.Name ?? attendanceType.OldName;
-                return attendanceType;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("AttendanceType",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
+            AttendanceType AttendanceType = GetObjfromXml<AttendanceEnvelope>(xml).Body.Data.Collection.AttendanceTypes[0];
+            return AttendanceType;
         }
 
 
@@ -1652,12 +1395,12 @@ namespace TallyConnector
             //If parameter is null Get value from instance
             company = company ?? Company;
 
-            AttendanceTypeEnvelope AttndTypeEnvelope = new AttendanceTypeEnvelope();
+            AttendanceEnvelope AttndTypeEnvelope = new AttendanceEnvelope();
             AttndTypeEnvelope.Header = new Header(Request: "Import", Type: "Data", ID: "All Masters");
             AttndTypeEnvelope.Body.Desc.StaticVariables = new StaticVariables() { SVCompany = company };
 
             AttndTypeEnvelope.Body.Data.Message.AttendanceType = AttendanceType;
-            AttendanceType.CreateNamesList();
+
             string AttndTypeXML = AttndTypeEnvelope.GetXML();
 
             string RespXml = await SendRequest(AttndTypeXML);
@@ -1685,7 +1428,8 @@ namespace TallyConnector
                                                           string company = null,
                                                           string fromDate = null,
                                                           string toDate = null,
-                                                          List<string> fetchList = null)
+                                                          List<string> fetchList = null,
+                                                          string format = "XML")
         {
             //If parameter is null Get value from instance
             company = company ?? Company;
@@ -1702,21 +1446,8 @@ namespace TallyConnector
                                                       NativeFields: fetchList,
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
-            EmployeeGroupEnvelope employeeGroupEnvelope = GetObjfromXml<EmployeeGroupEnvelope>(xml);
-            if (employeeGroupEnvelope.Body.Data.Collection.EmployeeGroups.Count > 0)
-            {
-                EmployeeGroup employeeGroup = employeeGroupEnvelope.Body.Data.Collection.EmployeeGroups[0];
-                employeeGroup.Alias = employeeGroup.LanguageNameList[0].LanguageAlias;
-                employeeGroup.Name = employeeGroup.Name?? employeeGroup.OldName;
-                return employeeGroup;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("EmployeeGroup",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
+            EmployeeGroup EmployeeGroup = GetObjfromXml<EmployeeGroupEnvelope>(xml).Body.Data.Collection.EmployeeGroups[0];
+            return EmployeeGroup;
         }
 
         ///// <summary>
@@ -1740,7 +1471,7 @@ namespace TallyConnector
             EmployeeGroupEnvelope.Body.Desc.StaticVariables = new StaticVariables() { SVCompany = company };
 
             EmployeeGroupEnvelope.Body.Data.Message.EmployeeGroup = EmployeeGroup;
-            EmployeeGroup.CreateNamesList();
+
             string CostCenterXML = EmployeeGroupEnvelope.GetXML();
 
             string RespXml = await SendRequest(CostCenterXML);
@@ -1750,7 +1481,7 @@ namespace TallyConnector
             return result;
         }
 
-
+       
         /// <summary>
         /// Gets CostCenter from Tally based on CostCenter name
         /// </summary>
@@ -1764,7 +1495,8 @@ namespace TallyConnector
         public async Task<Employee> GetEmployee(string LookupValue,
                                                 string LookupField = "Name",
                                                 string company = null,
-                                                List<string> fetchList = null)
+                                                List<string> fetchList = null,
+                                                string format = "XML")
         {
             //If parameter is null Get value from instance
             company = company ?? Company;
@@ -1779,21 +1511,8 @@ namespace TallyConnector
                                                       NativeFields: fetchList,
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
-            EmployeeEnvelope EmployeeEnvelope = GetObjfromXml<EmployeeEnvelope>(xml);
-            if (EmployeeEnvelope.Body.Data.Collection.Employees.Count > 0)
-            {
-                Employee employee = EmployeeEnvelope.Body.Data.Collection.Employees[0];
-                employee.Alias = employee.LanguageNameList[0].LanguageAlias;
-                employee.Name = employee.Name ?? employee.OldName;
-                return employee;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("Employee",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
+            Employee Employee= GetObjfromXml<EmployeeEnvelope>(xml).Body.Data.Collection.Employees[0];
+            return Employee;
         }
 
         ///// <summary>
@@ -1817,7 +1536,7 @@ namespace TallyConnector
             EmployeeEnvelope.Body.Desc.StaticVariables = new StaticVariables() { SVCompany = company };
 
             EmployeeEnvelope.Body.Data.Message.Employee = Employee;
-            Employee.CreateNamesList();
+
             string CostCenterXML = EmployeeEnvelope.GetXML();
 
             string RespXml = await SendRequest(CostCenterXML);
@@ -1842,7 +1561,8 @@ namespace TallyConnector
         public async Task<Voucher> GetVoucher(string LookupValue,
                                               string LookupField = "VoucherNumber",
                                               string company = null,
-                                              List<string> fetchList = null)
+                                              List<string> fetchList = null,
+                                              string format = "XML")
         {
             //If parameter is null Get value from instance
             company = company ?? Company;
@@ -1857,21 +1577,35 @@ namespace TallyConnector
                                                       NativeFields: fetchList,
                                                       Filters: Filters,
                                                       SystemFilters: SystemFilter);
-            VoucherEnvelope VchEnvelope = GetObjfromXml<VoucherEnvelope>(xml);
-            if (VchEnvelope.Body.Data.Collection.Vouchers.Count > 0)
-            {
-                Voucher voucher = VchEnvelope.Body.Data.Collection.Vouchers[0];
-                return voucher;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("Voucher",
-                                             LookupField,
-                                             LookupValue,
-                                             company);
-            }
+            Voucher Vch = GetObjfromXml<VoucherEnvelope>(xml).Body.Data.Collection.Vouchers[0];
+            return Vch;
         }
 
+
+        /// <summary>
+        /// Gets Voucher based on <strong>Voucher MasterID</strong>
+        /// </summary>
+        /// <param name="VoucherMasterID">Specify MasterID based on which vouchers to be fetched</param>
+        /// <param name="company">Specify Company if not specified in Setup</param>
+        /// <param name="fetchList">You can select the list of fields to be fetched from tally if nothing specified it pulls all fields availaible in Tally
+        /// </param>
+        /// <returns>Returns instance of Models.Voucher with data from tally</returns>
+        public async Task<Voucher> GetVoucherByMasterID(string VoucherMasterID,
+                                                        bool isinventory = false,
+                                                        string company = null,
+                                                        List<string> fetchList = null)
+        {
+            //If parameter is null Get value from instance
+            company = company ?? Company;
+            
+            Models.Voucher voucher = (await GetObjFromTally<VoucherEnvelope>(ObjName: $"ID: {VoucherMasterID}",
+                                                                             ObjType: "Voucher",
+                                                                             company: company,
+                                                                             fetchList: fetchList,
+                                                                             viewname: isinventory ? "" : "Accounting Voucher View")).Body.Data.Message.Voucher;
+
+            return voucher;
+        }
 
         /// <summary>
         /// Gets Voucher based on <strong>Voucher number and Date</strong>
@@ -1885,26 +1619,19 @@ namespace TallyConnector
         public async Task<Voucher> GetVoucherByVoucherNumber(string VoucherNumber,
                                                              string Date,
                                                              string company = null,
-                                                             List<string> fetchList = null)
+                                                             List<string> fetchList = null,
+                                                             string format = "XML")
         {
             //If parameter is null Get value from instance
             company = company ?? Company;
 
-            VoucherEnvelope VchEnvelope = (await GetObjFromTally<VoucherEnvelope>(ObjName: $"Date: \'{Date}\' : VoucherNumber: \'{VoucherNumber}\'",
+            Models.Voucher voucher = (await GetObjFromTally<VoucherEnvelope>(ObjName: $"Date: \'{Date}\' : VoucherNumber: \'{VoucherNumber}\'",
                                                                              ObjType: "Voucher",
                                                                              company: company,
                                                                              fetchList: fetchList,
-                                                                             viewname: "Accounting Voucher View"));
+                                                                             viewname: "Accounting Voucher View")).Body.Data.Message.Voucher;
 
-            if (VchEnvelope.Body.Data.Message.Voucher != null)
-            {
-                Voucher voucher = VchEnvelope.Body.Data.Message.Voucher;
-                return voucher;
-            }
-            else
-            {
-                throw new ObjectDoesNotExist("Voucher");
-            }
+            return voucher;
         }
 
 
@@ -1928,7 +1655,6 @@ namespace TallyConnector
             voucherEnvelope.Header = new Header(Request: "Import", Type: "Data", ID: "All Masters");
             voucherEnvelope.Body.Desc.StaticVariables = new StaticVariables() { SVCompany = company };
             voucher.OrderLedgers(); //Ensures ledgers are ordered in correct way
-            voucher.GetJulianday();
             voucherEnvelope.Body.Data.Message.Voucher = voucher;
 
             string GdwnXML = voucherEnvelope.GetXML();
@@ -1970,6 +1696,105 @@ namespace TallyConnector
 
 
 
+        /// <summary>
+        /// Get Vouchers of ledger
+        /// </summary>
+        /// <param name="ledgerName">Specify the name of Ledger from which vouchers to be fetched from Tally</param>
+        /// <param name="company">Specify Company if not specified in Setup</param>
+        /// <param name="fetchList">You can select the list of fields to be fetched from tally if nothing specified it pulls all fields availaible in Tally
+        /// <param name="fromDate">Specify fromDate if not specified in Setup</param>
+        /// <param name="toDate">Specify toDate if not specified in Setup</param>
+        /// </param>
+        /// <returns>Returns instance of Models.Ledger instance with data from tally</returns>
+        public async Task<List<Voucher>> GetLedgerVouchers(string ledgerName,
+                                                           string company = null,
+                                                           string fromDate = null,
+                                                           string toDate = null,
+                                                           List<string> Nativelist = null,
+                                                           List<string> Filters = null,
+                                                           List<string> SystemFilter = null)
+        {
+            //If parameter is null Get value from instance
+            company = company ?? Company;
+            fromDate = fromDate ?? FromDate;
+            toDate = toDate ?? ToDate;
+            Nativelist = Nativelist == null?new List<string>() { "*" } : Nativelist;
+            StaticVariables sv = new StaticVariables() { SVCompany = company, SVFromDate = fromDate, SVToDate = toDate };
+
+            string xml = await GetNativeCollectionXML(rName: "Vouchers", colType: "Vouchers : Ledger", Sv: sv,childof:ledgerName,
+                                                      NativeFields: Nativelist,Filters:Filters,SystemFilters:SystemFilter);
+
+            List<Voucher> Vouchers = GetObjfromXml<VoucherEnvelope>(xml).Body.Data.Collection.Vouchers;
+            return Vouchers;
+        }
+
+
+        /// <summary>
+        /// Get Group Vouchers
+        /// </summary>
+        /// <param name="ledgerName">Specify the name of Group from which vouchers to be fetched from Tally</param>
+        /// <param name="company">Specify Company if not specified in Setup</param>
+        /// <param name="fromDate">Specify fromDate if not specified in Setup</param>
+        /// <param name="toDate">Specify toDate if not specified in Setup</param>
+        /// <param name="fetchList">You can select the list of fields to be fetched from tally if nothing specified it pulls all fields availaible in Tally
+        /// <returns>Returns List of Models.Voucher  with data from tally</returns>
+        public async Task<List<Voucher>> GetGroupVouchers(string GroupName,
+                                                          string company = null,
+                                                          string fromDate = null,
+                                                          string toDate = null,
+                                                          List<string> Nativelist = null,
+                                                          List<string> Filters = null,
+                                                          List<string> SystemFilter = null)
+        {
+            //If parameter is null Get value from instance
+            company = company ?? Company;
+            fromDate = fromDate ?? FromDate;
+            toDate = toDate ?? ToDate;
+            Nativelist = Nativelist == null?new List<string>() { "*" } : Nativelist;
+            StaticVariables sv = new StaticVariables() { SVCompany = company, SVFromDate = fromDate, SVToDate = toDate };
+
+            string xml = await GetNativeCollectionXML(rName: "Vouchers", colType: "Vouchers : Group", Sv: sv,childof: GroupName,
+                                                      NativeFields: Nativelist, Filters: Filters, SystemFilters: SystemFilter);
+
+            List<Voucher> Vouchers = GetObjfromXml<VoucherEnvelope>(xml).Body.Data.Collection.Vouchers;
+            return Vouchers;
+        }
+
+
+
+
+        /// <summary>
+        /// Get Inventory Vouchers
+        /// </summary>
+        /// <param name="StovkItemName">Specify the name of StockItem from which vouchers to be fetched from Tally</param>
+        /// <param name="company">Specify Company if not specified in Setup</param>
+        /// <param name="fromDate">Specify fromDate if not specified in Setup</param>
+        /// <param name="toDate">Specify toDate if not specified in Setup</param>
+        /// <param name="fetchList">You can select the list of fields to be fetched from tally if nothing specified it pulls all fields availaible in Tally
+        /// <returns>Returns List of Models.Voucher  with data from tally</returns>
+        public async Task<List<Voucher>> GetInventoryVouchers(string ItemName,
+                                                              string company = null,
+                                                              string fromDate = null,
+                                                              string toDate = null,
+                                                              List<string> Nativelist = null,
+                                                              List<string> Filters = null,
+                                                              List<string> SystemFilter = null)
+        {
+            //If parameter is null Get value from instance
+            company = company ?? Company;
+            fromDate = fromDate ?? FromDate;
+            toDate = toDate ?? ToDate;
+            Nativelist = Nativelist == null ? new List<string>() { "*" } : Nativelist;
+            StaticVariables sv = new StaticVariables() { SVCompany = company, SVFromDate = fromDate, SVToDate = toDate };
+
+            string xml = await GetNativeCollectionXML(rName: "Vouchers", colType: "Vouchers : Stockitem", Sv: sv,childof: ItemName,
+                                                      NativeFields: Nativelist, Filters: Filters, SystemFilters: SystemFilter);
+
+            List<Voucher> Vouchers = GetObjfromXml<VoucherEnvelope>(xml).Body.Data.Collection.Vouchers;
+            return Vouchers;
+        }
+
+
         #endregion
         /// <summary>
         /// Retrives Data from Tally in Objects 
@@ -1996,24 +1821,22 @@ namespace TallyConnector
             company = company ?? Company;
             fromDate = fromDate ?? FromDate;
             toDate = toDate ?? ToDate;
-            T Obj = default;
-            string ResXml = string.Empty;
+            T Obj;
             try
             {
                 string ReqXml = GetObjXML(objType: ObjType,
                                           ObjName: ObjName,
                                           company: company,
-                                          fromDate: fromDate,
-                                          toDate: toDate,
+                                          fromDate:fromDate,
+                                          toDate:toDate,
                                           fetchList: fetchList,
                                           viewname: viewname);
-                ResXml = await SendRequest(ReqXml);
+                string ResXml = await SendRequest(ReqXml);
                 Obj = GetObjfromXml<T>(ResXml);
             }
             catch (Exception e)
             {
-                Logger.LogError($"Error ocuured while converting object from xml - {ResXml}");
-                Logger.LogError($"Errrr - {e.Message}");
+                throw;
             }
             return Obj;
         }
@@ -2076,8 +1899,11 @@ namespace TallyConnector
         {
             //LedgersList LedgList = new();
             string Resxml = null;
-            Models.CusColEnvelope ColEnvelope = new Models.CusColEnvelope(); //Collection Envelope
-            string RName = rName;
+            await Check();
+            if (Status == "Running")
+            {
+                Models.CusColEnvelope ColEnvelope = new CusColEnvelope(); //Collection Envelope
+                string RName = rName;
 
                 ColEnvelope.Header = new Header("Export", "Data", RName);  //Configuring Header To get Export data
                 if (Sv != null)
@@ -2088,21 +1914,13 @@ namespace TallyConnector
                 Dictionary<string, string> LeftFields = Fields;
                 Dictionary<string, string> RightFields = new Dictionary<string, string>();
 
-                ColEnvelope.Body.Desc.TDL.TDLMessage = new ColTDLMessage(rName: RName,
-                                                       fName: RName,
-                                                       topPartName: RName,
-                                                           rootXML: rName.Replace(" ", ""),
-                                                       colName: $"Form{RName}",
-                                                       lineName: RName,
-                                                       leftFields: LeftFields,
-                                                       rightFields: RightFields,
-                                                       colType: colType,
-                                                       filters: Filters,
-                                                       SysFormulae: SystemFilters);
+                ColEnvelope.Body.Desc.TDL.TDLMessage = new ColTDLMessage(rName: RName, fName: RName, topPartName: RName,
+                    rootXML: rName.Replace(" ", ""), colName: $"Form{RName}", lineName: RName, leftFields: LeftFields,
+                    rightFields: RightFields, colType: colType, filters: Filters, SysFormulae: SystemFilters);
 
-            string Reqxml = ColEnvelope.GetXML(); //Gets XML from Object
-            Resxml = await SendRequest(Reqxml);
-
+                string Reqxml = ColEnvelope.GetXML(); //Gets XML from Object
+                Resxml = await SendRequest(Reqxml);
+            }
             return Resxml;
         }
 
@@ -2128,29 +1946,28 @@ namespace TallyConnector
         {
             //LedgersList LedgList = new();
             string Resxml = null;
-            Models.CusColEnvelope ColEnvelope = new CusColEnvelope(); //Collection Envelope
-            string RName = rName;
-
-            ColEnvelope.Header = new Header("Export", "Collection", RName);  //Configuring Header To get Export data
-            if (Sv != null)
+            await Check();
+            if (Status == "Running")
             {
-                ColEnvelope.Body.Desc.StaticVariables = Sv;
+                Models.CusColEnvelope ColEnvelope = new CusColEnvelope(); //Collection Envelope
+                string RName = rName;
+
+                ColEnvelope.Header = new Header("Export", "Collection", RName);  //Configuring Header To get Export data
+                if (Sv != null)
+                {
+                    ColEnvelope.Body.Desc.StaticVariables = Sv;
+                }
+
+                ColEnvelope.Body.Desc.TDL.TDLMessage = new ColTDLMessage(colName: RName, colType: colType, nativeFields: NativeFields, Filters, SystemFilters);
+                ColEnvelope.Body.Desc.TDL.TDLMessage.Collection.Childof = childof;
+                if (isInitialize)
+                {
+                    ColEnvelope.Body.Desc.TDL.TDLMessage.Collection.SetAttributes(isInitialize: "Yes");
+                }
+
+                string Reqxml = ColEnvelope.GetXML(); //Gets XML from Object
+                Resxml = await SendRequest(Reqxml);
             }
-
-            ColEnvelope.Body.Desc.TDL.TDLMessage = new ColTDLMessage(colName: RName,
-                                                       colType: colType,
-                                                       nativeFields: NativeFields,
-                                                       Filters,
-                                                       SystemFilters);
-            ColEnvelope.Body.Desc.TDL.TDLMessage.Collection.Childof = childof;
-            if (isInitialize)
-            {
-                ColEnvelope.Body.Desc.TDL.TDLMessage.Collection.SetAttributes(isInitialize: "Yes");
-            }
-
-            string Reqxml = ColEnvelope.GetXML(); //Gets XML from Object
-            Resxml = await SendRequest(Reqxml);
-
             return Resxml;
         }
 
@@ -2176,37 +1993,37 @@ namespace TallyConnector
             return Resxml;
         }
 
-
         /// <summary>
         /// Posts XML to tally
         /// </summary>
         /// <param name="SXml">XML to be posted to tally</param>
         /// <returns>Response received from Tally</returns>
-        /// <exception cref="TallyConnectivityException">If tally is not opened or not configured correctly</exception>
         public async Task<string> SendRequest(string SXml)
         {
             string Resxml = "";
-
-            try
+            //await Check();
+            if (Status == "Running")
             {
-                CLogger.TallyRequest(SXml);
-                SXml = SXml.Replace("\t", "&#09;");
-                StringContent TXML = new StringContent(SXml, Encoding.UTF8, "application/xml");
-                HttpResponseMessage Res = await client.PostAsync(FullURL, TXML);
-                Res.EnsureSuccessStatusCode();
-                var byteArray = await Res.Content.ReadAsByteArrayAsync();
-                Resxml = Encoding.UTF8.GetString(byteArray, 0, byteArray.Length); ;
-                Resxml = ReplaceXMLText(Resxml);
-                CLogger.TallyResponse(Resxml);
-                return Resxml;
+                try
+                {
+                    CLogger.TallyRequest(SXml);
+                    SXml = SXml.Replace("\t", "&#09;");
+                    StringContent TXML = new StringContent(SXml, Encoding.UTF8, "application/xml");
+                    HttpResponseMessage Res = await client.PostAsync(FullURL, TXML);
+                    Res.EnsureSuccessStatusCode();
+                    Resxml = await Res.Content.ReadAsStringAsync();
+                    Resxml = ReplaceXMLText(Resxml);
+                    CLogger.TallyResponse(Resxml);
+                    return Resxml;
+                }
+                catch (Exception e)
+                {
+                    ReqStatus = e.Message;
+                    CLogger.TallyReqError(e.Message);
+                    return ReqStatus;
+                }
             }
-            catch (Exception e)
-            {
-                ReqStatus = e.Message;
-                CLogger.TallyReqError(e.Message);
-                throw new TallyConnectivityException("Tally is not running", FullURL);
-            }
-
+            return Resxml;
         }
 
         //Helper method to escape text for xml
@@ -2239,49 +2056,48 @@ namespace TallyConnector
         }
 
         //Converts to given object from Xml
-        public dynamic GetObjfromXml<T>(string Xml, XmlAttributeOverrides attrOverrides = null)
+        public static T GetObjfromXml<T>(string Xml)
         {
+            string re = @"[^\x09\x0A\x0D\x20-\xD7FF\xE000-\xFFFD\x10000-x10FFFF]";
+            Xml = System.Text.RegularExpressions.Regex.Replace(Xml, re, "");
+            XmlSerializer XMLSer = new XmlSerializer(typeof(T));
+
+            NameTable nt = new NameTable();
+            XmlNamespaceManager nsmgr = new XmlNamespaceManager(nt);
+            nsmgr.AddNamespace("UDF", "TallyUDF");
+            XmlParserContext context = new XmlParserContext(null, nsmgr, null, XmlSpace.None);
+
+            XmlReaderSettings xset = new XmlReaderSettings()
+            {
+                CheckCharacters = false,
+                ConformanceLevel = ConformanceLevel.Fragment
+            };
+            XmlReader rd = XmlReader.Create(new StringReader(Xml), xset, context);
+            //StringReader XmlStream = new StringReader(Xml);
+            if (typeof(T).Name.Contains("VoucherEnvelope"))
+            {
+                XmlReader xslreader = XmlReader.Create(new StringReader("<xsl:stylesheet version=\"1.0\" xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\"><xsl:template match=\"@*|node()\">    <xsl:copy>        <xsl:apply-templates select=\"@*|node()\" />    </xsl:copy></xsl:template><xsl:template match=\"/ENVELOPE/BODY/DATA/TALLYMESSAGE/VOUCHER/LEDGERENTRIES.LIST\">		<ALLLEDGERENTRIES.LIST><xsl:apply-templates select=\"@*|node()\" /></ALLLEDGERENTRIES.LIST></xsl:template>   <xsl:template match=\"/ENVELOPE/BODY/DATA/TALLYMESSAGE/VOUCHER/INVENTORYENTRIES.LIST\">		   <ALLINVENTORYENTRIES.LIST><xsl:apply-templates select=\"@*|node()\" /></ALLINVENTORYENTRIES.LIST>	   </xsl:template></xsl:stylesheet>"));
+                XslCompiledTransform xslTransform = new XslCompiledTransform();
+                xslTransform.Load(xslreader);
+                StringWriter textWriter = new StringWriter();
+                XmlWriter xmlwriter = XmlWriter.Create(textWriter, new XmlWriterSettings() { OmitXmlDeclaration = true });
+                xslTransform.Transform(rd, null, xmlwriter);
+                rd = XmlReader.Create(new StringReader(textWriter.ToString()), xset, context);
+            }
             try
             {
-                string re = @"[^\x09\x0A\x0D\x20-\xD7FF\xE000-\xFFFD\x10000-x10FFFF]";
-                Xml = System.Text.RegularExpressions.Regex.Replace(Xml, re, "");
-                XmlSerializer XMLSer = attrOverrides == null ? new XmlSerializer(typeof(T)) : new XmlSerializer(typeof(T), attrOverrides);
+                T obj = (T)XMLSer.Deserialize(rd);
 
-                NameTable nt = new NameTable ();
-                XmlNamespaceManager nsmgr = new XmlNamespaceManager(nt);
-                nsmgr.AddNamespace("UDF", "TallyUDF");
-                XmlParserContext context = new XmlParserContext(null, nsmgr, null, XmlSpace.None);
-
-                XmlReaderSettings xset = new XmlReaderSettings()
-                {
-                    CheckCharacters = false,
-                    ConformanceLevel = ConformanceLevel.Fragment
-                };
-                XmlReader rd = XmlReader.Create(new StringReader(Xml), xset, context);
-                //StringReader XmlStream = new StringReader(Xml);
-                if (typeof(T).Name.Contains("VoucherEnvelope"))
-                {
-                    XmlReader xslreader = XmlReader.Create(new StringReader("<xsl:stylesheet version=\"1.0\" xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\"><xsl:template match=\"@*|node()\">    <xsl:copy>        <xsl:apply-templates select=\"@*|node()\" />    </xsl:copy></xsl:template><xsl:template match=\"/ENVELOPE/BODY/DATA/TALLYMESSAGE/VOUCHER/LEDGERENTRIES.LIST\">		<ALLLEDGERENTRIES.LIST><xsl:apply-templates select=\"@*|node()\" /></ALLLEDGERENTRIES.LIST></xsl:template>   <xsl:template match=\"/ENVELOPE/BODY/DATA/TALLYMESSAGE/VOUCHER/INVENTORYENTRIES.LIST\">		   <ALLINVENTORYENTRIES.LIST><xsl:apply-templates select=\"@*|node()\" /></ALLINVENTORYENTRIES.LIST>	   </xsl:template></xsl:stylesheet>"));
-                    XslCompiledTransform xslTransform = new XslCompiledTransform();
-                    xslTransform.Load(xslreader);
-                    StringWriter textWriter = new StringWriter();
-                    XmlWriter xmlwriter = XmlWriter.Create(textWriter, new XmlWriterSettings() { OmitXmlDeclaration = true, Encoding = Encoding.Unicode });
-                    xslTransform.Transform(rd, null, xmlwriter);
-                    rd = XmlReader.Create(new StringReader(textWriter.ToString()), xset, context);
-                }
-                dynamic obj = XMLSer.Deserialize(rd);
 
                 return obj;
             }
             catch (Exception e)
             {
-                Logger.LogError($"Error  - {e.Message}");
-                Logger.LogError($"Error occured during de-serialization of - {Xml}");
-                return default;
+
+                throw;
             }
 
         }
-
 
         /// <summary>
         /// Helper Mehhod to convert base class to derieved class
@@ -2304,54 +2120,42 @@ namespace TallyConnector
 
         }
 
-        public PResult ParseResponse(string RespXml)
+        public static PResult ParseResponse(string RespXml)
         {
 
             PResult result = new PResult();
 
             if (!RespXml.Contains("RESPONSE")) //checks Unknown error
             {
-                ResponseEnvelope Resp = GetObjfromXml<ResponseEnvelope>(RespXml); //Response from tally on sucess
+                ResponseEnvelope Resp = Tally.GetObjfromXml<ResponseEnvelope>(RespXml); //Response from tally on sucess
                 if (Resp.Body.Data.LineError != null)
                 {
                     result.Status = RespStatus.Failure;
                     result.Result = Resp.Body.Data.LineError;
 
                 }
-                if (Resp.Body.Data.ImportResult != null)
+                if (Resp.Body.Data.ImportResult !=null)
                 {
                     if (Resp.Body.Data.ImportResult.LastVchId != null && Resp.Body.Data.ImportResult.LastVchId != 0)
                     {
-                        result.VCHID = Resp.Body.Data.ImportResult.LastVchId.ToString(); //Returns VoucherMaster ID
+                        result.Status = RespStatus.Sucess;
+                        result.Result = Resp.Body.Data.ImportResult.LastVchId.ToString(); //Returns VoucherMaster ID
                     }
-                    result.Status = RespStatus.Sucess;
-                    if (Resp.Body.Data.ImportResult.Created != 0)
+                    else
                     {
-                        result.Result = "Created Sucessfully";
-                    }
-                    else if (Resp.Body.Data.ImportResult.Altered != 0)
-                    {
-                        result.Result = "Altered Sucessfully";
-                    }
-                    else if (Resp.Body.Data.ImportResult.Deleted != 0)
-                    {
-                        result.Result = "Deleted Sucessfully";
-                    }
-                    else if (Resp.Body.Data.ImportResult.Cacelled != 0)
-                    {
-                        result.Result = "Cancelled Sucessfully";
-                    }
-                    else if (Resp.Body.Data.ImportResult.Combined != 0)
-                    {
-                        result.Result = "Combined Sucessfully";
+                        if (Resp.Body.Data.ImportResult.Created != 0)
+                        {
+                            result.Status = RespStatus.Sucess;
+                            result.Result = "Created";
+                        }
                     }
                 }
-
+                
 
             }
             else
             {
-                FailureResponse resp = GetObjfromXml<FailureResponse>(RespXml); //Response from tally on Failure
+                FailureResponse resp = Tally.GetObjfromXml<FailureResponse>(RespXml); //Response from tally on Failure
                 result.Status = RespStatus.Failure;
                 result.Result = resp.ToString();
             }

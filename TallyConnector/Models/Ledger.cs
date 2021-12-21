@@ -16,10 +16,10 @@ namespace TallyConnector.Models
         public Ledger()
         {
             FAddress = new HAddress();
-            InterestList = new();
-            LanguageNameList = new();
-            ClosingBalances = new();
-            MultipleAddresses = new();
+            InterestList = new List<InterestList>();
+            LanguageNameList = new List<LanguageNameList>();
+            ClosingBalances = new List<ClosingBalances>();
+            MultipleAddresses = new List<MultiAddress>();
         }
 
         [XmlElement(ElementName = "MASTERID")]

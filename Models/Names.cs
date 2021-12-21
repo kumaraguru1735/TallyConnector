@@ -1,0 +1,45 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Xml.Serialization;
+
+namespace TallyConnector.Models
+{
+	[NotMapped]
+	[XmlRoot(ElementName = "LANGUAGENAME.LIST")]
+	public class LanguageNameList
+	{
+		public LanguageNameList()
+        {
+			NameList = new Names();
+
+		}
+
+		[XmlElement(ElementName = "NAME.LIST")]
+		public Names NameList { get; set; }
+
+		//[XmlElement(ElementName = "LANGUAGEID")]
+		//public LANGUAGEID LANGUAGEID { get; set; }
+	}
+
+	[XmlRoot(ElementName = "NAME.LIST")]
+	public class Names
+	{
+		public Names()
+        {
+			NAMES = new List<string>();
+        }
+
+		[XmlElement(ElementName = "NAME")]
+		public List<string> NAMES { get; set; }
+
+		//[XmlAttribute(AttributeName = "TYPE")]
+		//public string TYPE { get; set; }
+
+		//[XmlText]
+		//public string Text { get; set; }
+	}
+}

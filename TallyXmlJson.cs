@@ -10,33 +10,27 @@ namespace TallyConnector
 {
     public class TallyXmlJson
     {
-        public string GetJson(bool Indented =false)
+        public string GetJson()
         {
-            string Json = JsonSerializer.Serialize(this, this.GetType(), new JsonSerializerOptions()
-            {
-                WriteIndented = Indented,
-                Converters = { new JsonStringEnumConverter() }
-            });
+            string Json = JsonSerializer.Serialize(this, this.GetType());
             return Json;
         }
 
-        public string GetXML(XmlAttributeOverrides attrOverrides = null)
+        public string GetXML()
         {
             TextWriter textWriter = new StringWriter();
             XmlWriterSettings settings = new XmlWriterSettings()
             {
                 OmitXmlDeclaration = true,
-                NewLineChars = "&#13;&#10;", //If /r/n in Xml replace
+                NewLineChars= "&#13;&#10;", //If /r/n in Xml replace
                 //NewLineHandling = NewLineHandling.Entitize,
                 Encoding = Encoding.UTF8,
                 CheckCharacters = false,
 
-                
             };
             XmlSerializerNamespaces ns = new XmlSerializerNamespaces(
                          new[] { XmlQualifiedName.Empty });
-            
-            XmlSerializer xmlSerializer = attrOverrides==null? new XmlSerializer(this.GetType()): new XmlSerializer(this.GetType(),attrOverrides);
+            XmlSerializer xmlSerializer = new XmlSerializer(this.GetType());
             var writer = XmlWriter.Create(textWriter, settings);
             xmlSerializer.Serialize(writer, this, ns);
             return textWriter.ToString(); ;
